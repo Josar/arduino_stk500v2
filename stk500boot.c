@@ -110,6 +110,7 @@ LICENSE:
 #include	<avr/common.h>
 #include	<stdlib.h>
 #include	"command.h"
+#include "autobaud.h"
 
 //start Josua
 #define STRINGIFY(s) XSTRINGIFY(s)
@@ -131,7 +132,7 @@ LICENSE:
 	#define EEMWE   2
 #endif
 
-//#define	_DEBUG_SERIAL_ (1)
+#define	_DEBUG_SERIAL_ (1)
 //#define	_DEBUG_WITH_LEDS_ (1)
 
 
@@ -559,12 +560,32 @@ void (*app_start)(void) = 0x0000;
 
 
 
+/* Add Autobaud functions*/
+volatile uint8_t count=0;
+volatile uint16_t timer_ticks = 0;
+
+inline uint16_t get_ubrr(uint16_t ticks)
+{
+uint16_t ubrr = ticks/(16*10UL);
+	if(ticks > 450){
+			return ubrr;
+	}else{
+		return (ubrr -1);
+	}
+}
 
 
+ISR(PCINT1_vect)
+{
+	if(count >=6){
+					TCCR5B &= ~(1<<CS50);
 
-
-
-
+	}else if(count == 0)
+		{
+			TCCR5B |= (1<<CS50); //start clock
+		}
+	count++;
+}
 
 
 
@@ -576,22 +597,61 @@ int main(void)
     /* Set calibration value for internal RC oscillator*/
 	/* get calibration value from Atmel studio 0xB3 for each device */
 	///TODO autocaliber with the two oscillators 
-    OSCCAL = 0xA3; // //0xA3; // OSCCAL; //0xa3;
+    OSCCAL = 0xaa; // //0xA3; // OSCCAL; //0xa3;
 
-	
-	
-   /* enable extended addressing */
-   /* Some MCU with more than 128KB flash start writing in the middle of the flash
-    * the EIND has to be set to get them start at the beginning.
-    */
-#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
-    EIND = 1;
-#endif
+
+
+
+    DDRE &= ~(1<<PE0)|(1<<PE1);
+    		//pullups
+    		PORTE |= (1<<PE0)|(1<<PE1);
+
+    		DDRB |= (1<<PB4);
+    		PORTB | (1<<PB4)|(1<<PB5)|(1<<PB6);
+
+    		TIMER_CONFIG_A = 0;
+    		TIMER_CONFIG_B = 0;
+    		TIMER_CONFIG_C = 0;
+    		TIMER_COUNT = 0;
+
+
+    		MCUCR = (1<<IVCE);
+    		MCUCR = 0x02;
+
+    		PCICR |= (1<<PCIE1);
+    		PCMSK1 |= (1<<PCINT8);
+
+    		CLKPR = (1<<CLKPCE);
+    		CLKPR = 0x0f;
+
+    		sei();
+    		while(count <=6);
+    		PCICR &= ~(1<<PCIE1);
+    		cli();
+
+    		CLKPR = (1<<CLKPCE);
+    		CLKPR = 0x00;
+    		timer_ticks = TCNT5;
+
+
 
 	/* PROG_PIN pulled low, indicate with LED that bootloader is active */
 	PROGLED_DDR		|=	(1<<PROGLED_PIN);
 	PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// active low LED ON
 	// PROGLED_PORT	|=	(1<<PROGLED_PIN);	// active high LED ON
+
+
+
+
+	   /* enable extended addressing */
+	   /* Some MCU with more than 128KB flash start writing in the middle of the flash
+	    * the EIND has to be set to get them start at the beginning.
+	    */
+	#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
+	    EIND = 1;
+	#endif
+
+
 
 	/* END Josua */
 
@@ -627,7 +687,7 @@ int main(void)
 
 
 
-#ifdef _FIX_ISSUE_181_
+/*#ifdef _FIX_ISSUE_181_
 	//************************************************************************
 	//*	Dec 29,	2011	<MLS> Issue #181, added watch dog timmer support
 	//*	handle the watch dog timer
@@ -646,7 +706,7 @@ int main(void)
 		app_start();
 	}
 	//************************************************************************
-#endif
+#endif*/
 
 	boot_timer	=	0;
 	boot_state	=	0;
@@ -688,14 +748,20 @@ int main(void)
 #if UART_BAUDRATE_DOUBLE_SPEED
 	UART_STATUS_REG		|=	(1 <<UART_DOUBLE_SPEED);
 #endif
-	UART_BAUD_RATE_LOW	=	UART_BAUD_SELECT(BAUDRATE,F_CPU);
+	//UART_BAUD_RATE_LOW	=	UART_BAUD_SELECT(BAUDRATE,F_CPU);
+	//UART_BAUD_RATE_LOW = get_ubrr(timer_ticks);
+	UART_BAUD_RATE_LOW = 1;
 	UART_CONTROL_REG	=	(1 << UART_ENABLE_RECEIVER) | (1 << UART_ENABLE_TRANSMITTER);
 
 	asm volatile ("nop");			// wait until port has changed
-
 #ifdef _DEBUG_SERIAL_
 //	delay_ms(500);
-
+	sendchar('#');
+	sendchar(get_ubrr(timer_ticks));
+	sendchar(timer_ticks>>8);
+	sendchar(timer_ticks);
+	sendchar(count);
+	sendchar('#');
 
 	sendchar('s');
 	sendchar('t');
@@ -713,7 +779,7 @@ int main(void)
 
 
 
-	while (boot_state==0)
+	/*while (boot_state==0)
 	{
 		while ((!(Serial_Available())) && (boot_state == 0))		// wait for data
 		{
@@ -732,9 +798,9 @@ int main(void)
 		#endif
 		}
 		boot_state++; // ( if boot_state=1 bootloader received byte from UART, enter bootloader mode)
-	}
-
-
+	} */
+	boot_state =1;
+	uint8_t first_run = 1;
 
 	if (boot_state==1)
 	{
@@ -758,13 +824,13 @@ int main(void)
 					c	=	recchar_timeout();
 					
 				}
-
-
-
-
-
-
-
+				uint8_t temp = c;
+				if(first_run){
+					while(temp != 0x14&&first_run) {
+						temp = recchar();
+					}
+					msgParseState = ST_PROCESS;
+				}
 
 			#ifdef ENABLE_MONITOR
 				rcvdCharCntr++;
@@ -870,10 +936,39 @@ int main(void)
 				}	//	switch
 			}	//	while(msgParseState)
 
+
+
+			if(first_run){
+				checksum		=	MESSAGE_START^0;
+				seqNum = 0x01;
+				checksum ^= 0x01;	//get_seq_num   0x01
+				msgLength		=	0;
+				checksum		^=	0x00; //MSG_SIZE_1  0x00
+				msgLength		|=	0x01;			//MSG_SIZE_2 0x01
+				checksum		^=	0x01;
+				checksum		^=	0x0e;			//ST_GET_TOCKEN 0x0e
+				ii				=	0;
+				msgBuffer[ii++]	=	0x01;				//ST_GET_DATA 0x01
+				checksum		^=	0x01;
+				msgParseState	=	ST_PROCESS;
+
+				msgLength		=	11;
+				msgBuffer[1] 	=	STATUS_CMD_OK;
+				msgBuffer[2] 	=	8;
+				msgBuffer[3] 	=	'A';
+				msgBuffer[4] 	=	'V';
+				msgBuffer[5] 	=	'R';
+				msgBuffer[6] 	=	'I';
+				msgBuffer[7] 	=	'S';
+				msgBuffer[8] 	=	'P';
+				msgBuffer[9] 	=	'_';
+				msgBuffer[10]	=	'2';
+				first_run =0;
+			}else{
+
 			/*
 			 * Now process the STK500 commands, see Atmel Appnote AVR068
 			 */
-
 			switch (msgBuffer[0])
 			{
 	#ifndef REMOVE_CMD_SPI_MULTI
@@ -1181,6 +1276,7 @@ int main(void)
 					msgLength		=	2;
 					msgBuffer[1]	=	STATUS_CMD_FAILED;
 					break;
+			}
 			}
 
 			/*
