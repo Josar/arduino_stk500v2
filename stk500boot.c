@@ -566,7 +566,7 @@ volatile uint16_t timer_ticks = 0;
 
 uint16_t get_ubrr(uint16_t ticks)
 {
-uint16_t ubrr = ticks/(16*10UL);
+uint16_t ubrr = ticks/(16*10UL)-0.5;
 	if(ticks > 450){
 			return ubrr;
 	}else{
