@@ -663,7 +663,6 @@ int main(void)
 	#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
 	    EIND = 1;
 	#endif
-
 	#ifdef _FIX_ISSUE_181_
 	    //************************************************************************
 	    //*	Dec 29,	2011	<MLS> Issue #181, added watch dog timmer support
@@ -691,7 +690,6 @@ int main(void)
 	/* get calibration value from Atmel studio 0xB3 for each device */
 	///TODO autocaliber with the two oscillators 
     //OSCCAL = 0xaa; // //0xA3; // OSCCAL; //0xa3;
-
 	CalibrateInternalRc();
 
 
@@ -718,13 +716,30 @@ int main(void)
 
     		CLKPR = (1<<CLKPCE);
     		CLKPR = 0x0f;
-
+    		uint32_t wait = 0;
     		sei();
-    		while(count <=6);
+    		while(count <=6 && wait < 0xfffff){
+    			wait++;
+    		}
     		PCICR &= ~(1<<PCIE1);
-
+    		PORTE &= ~(1<<PE0)|(1<<PE1);
     		CLKPR = (1<<CLKPCE);
     		CLKPR = 0x00;
+    		if(count <=6){
+    			UART_STATUS_REG	&=	0xfd;
+    				boot_rww_enable();				// enable application section
+
+    				DDRB |= (1<<PB6);
+    				PORTB &= ~(1<<PB6);
+    				_delay_ms(200);
+				#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
+    					EIND = 0;
+				#endif
+    			MCUCR = (1<<IVCE);
+    			MCUCR = 0x00;
+    			PORTB |= (1<<PB4)|(1<<PB5)|(1<<PB6);
+    			asm("jmp 0000");
+    		}
     		timer_ticks = TCNT5;
 
 
@@ -1404,16 +1419,10 @@ int main(void)
 
 
 
-
-
-
-
-
-
 #ifndef REMOVE_BOOTLOADER_LED
 	PROGLED_DDR		&=	~(1<<PROGLED_PIN);	// set to default
-	PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// active low LED OFF
-//	PROGLED_PORT	|=	(1<<PROGLED_PIN);	// active high LED OFf
+	PROGLED_PORT	|=	(1<<PROGLED_PIN);	// active low LED OFF
+//	PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// active high LED OFf
 	delay_ms(100);							// delay after exit
 #endif
 
@@ -1431,8 +1440,9 @@ int main(void)
 	UART_STATUS_REG	&=	0xfd;
 	boot_rww_enable();				// enable application section
 
-
-
+	DDRB |= (1<<PB6);
+	PORTB &= ~(1<<PB6);
+	_delay_ms(200);
 
 
 
@@ -1446,17 +1456,31 @@ int main(void)
 #endif
 /* END Josua */
 
+    MCUCR = (1<<IVCE);
+    MCUCR = 0x00;
 
+  /*  asm volatile (
+           "clr r1" "\n\t"
+           "push r1" "\n\t"
+           "push r1" "\n\t"
+           "push r1" "\n\t"
+           "ret"     "\n\t"
+   	::);*/
 
-	asm volatile(
+    asm("jmp 0000");
+
+    DDRB |= (1<<PB5);
+    PORTB &= ~(1<<PB5);
+
+	/*asm volatile(
 			"clr	r30		\n\t"
 			"clr	r31		\n\t"
 			"ijmp	\n\t"
 			);
-//	asm volatile ( "push r1" "\n\t"		// Jump to Reset vector in Application Section
-//					"push r1" "\n\t"
-//					"ret"	 "\n\t"
-//					::);
+	asm volatile ( "push r1" "\n\t"		// Jump to Reset vector in Application Section
+					"push r1" "\n\t"
+					"ret"	 "\n\t"
+					::);*/
 
 	 /*
 	 * Never return to stop GCC to generate exit return code
