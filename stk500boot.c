@@ -629,10 +629,9 @@ static inline void CalibrateInternalRc(void){
 /* Add Autobaud functions*/
 volatile uint8_t count=0;
 
-static inline uint16_t get_ubrr(uint16_t ticks)
+uint16_t get_ubrr(uint16_t ticks)
 {
-uint16_t ubrr = ticks/(16*10UL)-0.5;
-	return ubrr;
+	return  ticks/(16*10UL)-0.5;
 }
 
 
@@ -648,7 +647,21 @@ ISR(PCINT1_vect)
 	count++;
 }
 
-
+/*Add exit function*/
+static void exit_bootloader(void)
+{
+	boot_rww_enable();				// enable application section
+	DDRB |= (1<<PB6);
+	PORTB &= ~(1<<PB6);
+	_delay_ms(200);
+	#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
+			EIND = 0;
+	#endif
+	MCUCR = (1<<IVCE);
+	MCUCR = 0x00;
+	PORTB |= (1<<PB4)|(1<<PB5)|(1<<PB6);
+	asm("jmp 0000");
+}
 
 
 //*****************************************************************************
@@ -716,29 +729,15 @@ int main(void)
 
     		CLKPR = (1<<CLKPCE);
     		CLKPR = 0x0f;
-    		uint32_t wait = 0;
+    		uint32_t wait = 0xfffff;
     		sei();
-    		while(count <=6 && wait < 0xfffff){
-    			wait++;
-    		}
+    		while(count <=6 && --wait);
     		PCICR &= ~(1<<PCIE1);
     		PORTE &= ~(1<<PE0)|(1<<PE1);
     		CLKPR = (1<<CLKPCE);
     		CLKPR = 0x00;
     		if(count <=6){
-    			UART_STATUS_REG	&=	0xfd;
-    				boot_rww_enable();				// enable application section
-
-    				DDRB |= (1<<PB6);
-    				PORTB &= ~(1<<PB6);
-    				_delay_ms(200);
-				#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
-    					EIND = 0;
-				#endif
-    			MCUCR = (1<<IVCE);
-    			MCUCR = 0x00;
-    			PORTB |= (1<<PB4)|(1<<PB5)|(1<<PB6);
-    			asm("jmp 0000");
+    			exit_bootloader();
     		}
     		timer_ticks = TCNT5;
 
@@ -1011,18 +1010,13 @@ int main(void)
 
 
 			if(first_run){
-				checksum		=	MESSAGE_START^0;
 				seqNum = 0x01;
-				checksum ^= 0x01;	//get_seq_num   0x01
-				msgLength		=	0;
-				checksum		^=	0x00; //MSG_SIZE_1  0x00
-				msgLength		|=	0x01;			//MSG_SIZE_2 0x01
-				checksum		^=	0x01;
-				checksum		^=	0x0e;			//ST_GET_TOCKEN 0x0e
-				ii				=	0;
-				msgBuffer[ii++]	=	0x01;				//ST_GET_DATA 0x01
-				checksum		^=	0x01;
+				msgLength		=	0x01;			//MSG_SIZE_2 0x01
+				ii				=	1;
+				msgBuffer[0]	=	0x01;				//ST_GET_DATA 0x01
+
 				msgParseState	=	ST_PROCESS;
+				checksum = 0;
 
 				msgLength		=	11;
 				msgBuffer[1] 	=	STATUS_CMD_OK;
@@ -1438,50 +1432,7 @@ int main(void)
 	 */
 
 	UART_STATUS_REG	&=	0xfd;
-	boot_rww_enable();				// enable application section
-
-	DDRB |= (1<<PB6);
-	PORTB &= ~(1<<PB6);
-	_delay_ms(200);
-
-
-
-/* START Josua */
-   /* enable extended addressing */
-   /* Some MCU with more than 128KB flash start writing in the middle of the flash
-    * the EIND has to be set to get them start at the beginning.
-    */
-#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
-    EIND = 0;
-#endif
-/* END Josua */
-
-    MCUCR = (1<<IVCE);
-    MCUCR = 0x00;
-
-  /*  asm volatile (
-           "clr r1" "\n\t"
-           "push r1" "\n\t"
-           "push r1" "\n\t"
-           "push r1" "\n\t"
-           "ret"     "\n\t"
-   	::);*/
-
-    asm("jmp 0000");
-
-    DDRB |= (1<<PB5);
-    PORTB &= ~(1<<PB5);
-
-	/*asm volatile(
-			"clr	r30		\n\t"
-			"clr	r31		\n\t"
-			"ijmp	\n\t"
-			);
-	asm volatile ( "push r1" "\n\t"		// Jump to Reset vector in Application Section
-					"push r1" "\n\t"
-					"ret"	 "\n\t"
-					::);*/
-
+	exit_bootloader();
 	 /*
 	 * Never return to stop GCC to generate exit return code
 	 * Actually we will never reach this point, but the compiler doesn't
