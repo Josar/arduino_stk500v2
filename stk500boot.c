@@ -132,7 +132,7 @@ LICENSE:
 	#define EEMWE   2
 #endif
 
-#define	_DEBUG_SERIAL_ (1)
+//#define	_DEBUG_SERIAL_ (1)
 //#define	_DEBUG_WITH_LEDS_ (1)
 
 
@@ -559,19 +559,80 @@ uint32_t count = 0;
 void (*app_start)(void) = 0x0000;
 
 
+#if defined(_MEGA_BOARD_PINO )
+		#define ASYNC_TIMER														AS2
+		#define NO_PRESCALING													CS20
+		#define ASYNC_TIMER_CONTROL_REGISTER				TCCR2B
+		#define ASYNC_TIMER_CONTROL_UPDATE_BUSY    	TCR2AUB
+		#define OUTPUT_COMPARE_UPDATE_BUSY         		OCR2AUB
+		#define TIMER_UPDATE_BUSY                  						TCN2UB
+		#define TIMER                              											TCNT2
+		#define OSCCAL_RESOLUTION                  						8
+		#define LOOP_CYCLES                        									7
+		#define XTAL_FREQUENCY 												32768U
+		#define EXTERNAL_TICKS 													50U
+#endif
+
+/* Add calibration functions */
+
+static inline unsigned int Counter(void){
+  unsigned int cnt;
+  cnt = 0;                                                      // Reset counter
+  TIMER = 0x00;                                                 // Reset async timer/counter
+  while (ASSR & ((1<<OUTPUT_COMPARE_UPDATE_BUSY)|(1<<TIMER_UPDATE_BUSY)|(1<<ASYNC_TIMER_CONTROL_UPDATE_BUSY))); // Wait until async timer is updated  (Async Status reg. busy flags).
+  do{                                                           // cnt++: Increment counter - the add immediate to word (ADIW) takes 2 cycles of code.
+    cnt++;                                                      // Devices with async TCNT in I/0 space use 1 cycle reading, 2 for devices with async TCNT in extended I/O space
+  } while (TIMER < EXTERNAL_TICKS);                             // CPI takes 1 cycle, BRCS takes 2 cycles, resulting in: 2+1(or 2)+1+2=6(or 7) CPU cycles
+  return cnt;                                                   // NB! Different compilers may give different CPU cycles!
+}
+
+static inline void CalibrateInternalRc(void){
+
+	uint16_t countVal = ((EXTERNAL_TICKS*(uint32_t)F_CPU)/(((uint32_t)XTAL_FREQUENCY)*LOOP_CYCLES));
+	ASSR |= (1<<ASYNC_TIMER); \
+	ASYNC_TIMER_CONTROL_REGISTER = (1<<NO_PRESCALING);
+	TIMER = 0;
+	while (ASSR & ((1<<OUTPUT_COMPARE_UPDATE_BUSY)|(1<<TIMER_UPDATE_BUSY)|(1<<ASYNC_TIMER_CONTROL_UPDATE_BUSY)));
+
+  unsigned int count = 0;
+  unsigned char cycles = 0x80;
+  uint8_t prev_osccal[2] = {0,0};
+  for(;cycles > 0; cycles--)
+  {
+	  prev_osccal[1] = prev_osccal[0];
+	  prev_osccal[0] = OSCCAL;
+	  //printf("OSCCAL %x \n", OSCCAL);
+	  count = Counter();
+	  if(cycles < 0x80-5) {
+	  //printf("count %u \n", count);
+	  if(count > countVal){
+		  OSCCAL--;
+		  //NOP();
+	  }else if(count < countVal){
+		  OSCCAL++;
+		  //NOP();
+	  }else{
+		  cycles = 1;
+	  }
+	  //printf("OSCCAL %x prev0 %x prev1 %x \n", OSCCAL, prev_osccal[0], prev_osccal[1]);
+	  if(OSCCAL == prev_osccal[1]) {
+		  cycles = 1;
+	  }
+	  }
+  }
+}
+
+
+
+
 
 /* Add Autobaud functions*/
 volatile uint8_t count=0;
-volatile uint16_t timer_ticks = 0;
 
-uint16_t get_ubrr(uint16_t ticks)
+static inline uint16_t get_ubrr(uint16_t ticks)
 {
 uint16_t ubrr = ticks/(16*10UL)-0.5;
-	if(ticks > 450){
-			return ubrr;
-	}else{
-		return (ubrr -1);
-	}
+	return ubrr;
 }
 
 
@@ -593,15 +654,49 @@ ISR(PCINT1_vect)
 //*****************************************************************************
 int main(void)
 {
+
+
+	   /* enable extended addressing */
+	   /* Some MCU with more than 128KB flash start writing in the middle of the flash
+	    * the EIND has to be set to get them start at the beginning.
+	    */
+	#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
+	    EIND = 1;
+	#endif
+
+	#ifdef _FIX_ISSUE_181_
+	    //************************************************************************
+	    //*	Dec 29,	2011	<MLS> Issue #181, added watch dog timmer support
+	    //*	handle the watch dog timer
+	    uint8_t	mcuStatusReg;
+		mcuStatusReg	=	MCUSR;
+
+		__asm__ __volatile__ ("cli");
+		__asm__ __volatile__ ("wdr");
+		MCUSR	=	0;
+		WDTCSR	|=	_BV(WDCE) | _BV(WDE);
+		WDTCSR	=	0;
+		__asm__ __volatile__ ("sei");
+		// check if WDT generated the reset, if so, go straight to app
+		if (mcuStatusReg & _BV(WDRF))
+		{
+			app_start();
+		}
+		//************************************************************************
+	#endif
+
+
 /* START Josua */
     /* Set calibration value for internal RC oscillator*/
 	/* get calibration value from Atmel studio 0xB3 for each device */
 	///TODO autocaliber with the two oscillators 
-    OSCCAL = 0xaa; // //0xA3; // OSCCAL; //0xa3;
+    //OSCCAL = 0xaa; // //0xA3; // OSCCAL; //0xa3;
+
+	CalibrateInternalRc();
 
 
 
-
+    uint16_t timer_ticks = 0;
     DDRE &= ~(1<<PE0)|(1<<PE1);
     		//pullups
     		PORTE |= (1<<PE0)|(1<<PE1);
@@ -627,7 +722,6 @@ int main(void)
     		sei();
     		while(count <=6);
     		PCICR &= ~(1<<PCIE1);
-    		cli();
 
     		CLKPR = (1<<CLKPCE);
     		CLKPR = 0x00;
@@ -639,18 +733,6 @@ int main(void)
 	PROGLED_DDR		|=	(1<<PROGLED_PIN);
 	PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// active low LED ON
 	// PROGLED_PORT	|=	(1<<PROGLED_PIN);	// active high LED ON
-
-
-
-
-	   /* enable extended addressing */
-	   /* Some MCU with more than 128KB flash start writing in the middle of the flash
-	    * the EIND has to be set to get them start at the beginning.
-	    */
-	#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
-	    EIND = 1;
-	#endif
-
 
 
 	/* END Josua */
@@ -681,32 +763,6 @@ int main(void)
 	asm volatile ( "out %0,16" :: "i" (AVR_STACK_POINTER_HI_ADDR) );
 	asm volatile ( "ldi	16, %0" :: "i" (RAMEND & 0x0ff) );
 	asm volatile ( "out %0,16" :: "i" (AVR_STACK_POINTER_LO_ADDR) );
-
-
-
-
-
-
-/*#ifdef _FIX_ISSUE_181_
-	//************************************************************************
-	//*	Dec 29,	2011	<MLS> Issue #181, added watch dog timmer support
-	//*	handle the watch dog timer
-	uint8_t	mcuStatusReg;
-	mcuStatusReg	=	MCUSR;
-
-	__asm__ __volatile__ ("cli");
-	__asm__ __volatile__ ("wdr");
-	MCUSR	=	0;
-	WDTCSR	|=	_BV(WDCE) | _BV(WDE);
-	WDTCSR	=	0;
-	__asm__ __volatile__ ("sei");
-	// check if WDT generated the reset, if so, go straight to app
-	if (mcuStatusReg & _BV(WDRF))
-	{
-		app_start();
-	}
-	//************************************************************************
-#endif*/
 
 	boot_timer	=	0;
 	boot_state	=	0;
@@ -750,12 +806,14 @@ int main(void)
 #endif
 	//UART_BAUD_RATE_LOW	=	UART_BAUD_SELECT(BAUDRATE,F_CPU);
 	UART_BAUD_RATE_LOW = get_ubrr(timer_ticks);
+	//UART_BAUD_RATE_LOW = 1;
 	UART_CONTROL_REG	=	(1 << UART_ENABLE_RECEIVER) | (1 << UART_ENABLE_TRANSMITTER);
 
 	asm volatile ("nop");			// wait until port has changed
 #ifdef _DEBUG_SERIAL_
 //	delay_ms(500);
 	sendchar('#');
+	sendchar(OSCCAL);
 	sendchar(get_ubrr(timer_ticks));
 	sendchar(timer_ticks>>8);
 	sendchar(timer_ticks);
@@ -778,7 +836,7 @@ int main(void)
 
 
 
-	/*while (boot_state==0)
+/*	while (boot_state==0)
 	{
 		while ((!(Serial_Available())) && (boot_state == 0))		// wait for data
 		{
@@ -797,7 +855,7 @@ int main(void)
 		#endif
 		}
 		boot_state++; // ( if boot_state=1 bootloader received byte from UART, enter bootloader mode)
-	} */
+	}*/
 	boot_state =1;
 	uint8_t first_run = 1;
 
