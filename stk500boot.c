@@ -132,7 +132,7 @@ LICENSE:
 	#define EEMWE   2
 #endif
 
-//#define	_DEBUG_SERIAL_ (1)
+#define	_DEBUG_SERIAL_ (1)
 //#define	_DEBUG_WITH_LEDS_ (1)
 
 
@@ -667,8 +667,9 @@ static void exit_bootloader(void)
 //*****************************************************************************
 int main(void)
 {
-
-
+	DDRG |= (1<<PG0)|(1<<PG2);
+	PORTG |= (1<<PG0)|(1<<PG2);
+	uint8_t temp_osccal = OSCCAL;
 	   /* enable extended addressing */
 	   /* Some MCU with more than 128KB flash start writing in the middle of the flash
 	    * the EIND has to be set to get them start at the beginning.
@@ -676,7 +677,7 @@ int main(void)
 	#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
 	    EIND = 1;
 	#endif
-	#ifdef _FIX_ISSUE_181_
+/*	#ifdef _FIX_ISSUE_181_
 	    //************************************************************************
 	    //*	Dec 29,	2011	<MLS> Issue #181, added watch dog timmer support
 	    //*	handle the watch dog timer
@@ -695,7 +696,7 @@ int main(void)
 			app_start();
 		}
 		//************************************************************************
-	#endif
+	#endif*/
 
 
 /* START Josua */
@@ -827,6 +828,7 @@ int main(void)
 #ifdef _DEBUG_SERIAL_
 //	delay_ms(500);
 	sendchar('#');
+	sendchar(temp_osccal);
 	sendchar(OSCCAL);
 	sendchar(get_ubrr(timer_ticks));
 	sendchar(timer_ticks>>8);
@@ -1254,7 +1256,6 @@ int main(void)
 								boot_page_erase(eraseAddress);	// Perform page erase
 								boot_spm_busy_wait();		// Wait until the memory is erased.
 								eraseAddress += SPM_PAGESIZE;	// point to next page to be erase
-							}
 
 							/* Write FLASH */
 							do {
@@ -1274,6 +1275,7 @@ int main(void)
 							boot_page_write(tempaddress);
 							boot_spm_busy_wait();
 							boot_rww_enable();				// Re-enable the RWW section
+							}
 						}
 						else
 						{
