@@ -629,7 +629,7 @@ static inline void CalibrateInternalRc(void){
 /* Add Autobaud functions*/
 volatile uint8_t count=0;
 
-uint16_t get_ubrr(uint16_t ticks)
+static inline uint16_t get_ubrr(uint16_t ticks)
 {
 	return  ticks/(16*10UL)-0.5;
 }
@@ -820,7 +820,8 @@ int main(void)
 	UART_STATUS_REG		|=	(1 <<UART_DOUBLE_SPEED);
 #endif
 	//UART_BAUD_RATE_LOW	=	UART_BAUD_SELECT(BAUDRATE,F_CPU);
-	UART_BAUD_RATE_LOW = get_ubrr(timer_ticks);
+	//UART_BAUD_RATE_LOW = get_ubrr(timer_ticks);
+	UART_BAUD_RATE_LOW = 1;
 	//UART_BAUD_RATE_LOW = 1;
 	UART_CONTROL_REG	=	(1 << UART_ENABLE_RECEIVER) | (1 << UART_ENABLE_TRANSMITTER);
 
