@@ -98,7 +98,7 @@ LICENSE:
 #define	_FIX_ISSUE_505_
 //************************************************************************
 //*	Issue 181: added watch dog timmer support
-#define	_FIX_ISSUE_181_
+// #define	_FIX_ISSUE_181_
 
 #include	<inttypes.h>
 #include	<avr/io.h>
@@ -132,7 +132,7 @@ LICENSE:
 	#define EEMWE   2
 #endif
 
-#define	_DEBUG_SERIAL_ (1)
+//#define	_DEBUG_SERIAL_ (1)
 //#define	_DEBUG_WITH_LEDS_ (1)
 
 
@@ -588,7 +588,7 @@ static inline unsigned int Counter(void){
 
 static inline void CalibrateInternalRc(void){
 
-	uint16_t countVal = ((EXTERNAL_TICKS*(uint32_t)F_CPU)/(((uint32_t)XTAL_FREQUENCY)*LOOP_CYCLES));
+	uint16_t countVal = ((EXTERNAL_TICKS*(uint32_t)16000000)/(((uint32_t)XTAL_FREQUENCY)*LOOP_CYCLES));
 	ASSR |= (1<<ASYNC_TIMER); \
 	ASYNC_TIMER_CONTROL_REGISTER = (1<<NO_PRESCALING);
 	TIMER = 0;
@@ -631,7 +631,46 @@ volatile uint8_t count=0;
 
 static inline uint16_t get_ubrr(uint16_t ticks)
 {
-	return  ticks/(16*10UL)-0.5;
+	if(ticks > 4050 && ticks < 4250){
+		//38400 BAUD
+		return 25;
+	}
+	if(ticks > 1000){
+		return  (ticks/(16*10UL))-0.5;
+	}
+	/*if(ticks > 12000){
+		return 103;
+	}
+	if(ticks > 8500){
+		return 68;
+	}
+	if(ticks > 6000){
+		return 51;
+	}
+	if(ticks > 4500){
+		return 34;
+	}
+	if(ticks > 3000){
+			//38400 Baud
+		return 25;
+	}
+	if(ticks > 2200){
+		return 16;
+	}
+	if(ticks > 1300){
+		return 12;
+	}
+	if(ticks > 800){
+		return 8;
+	}*/
+	if(ticks > 580){
+		//250kBaud
+		return 3;
+	}
+	else{
+		//500kBaud measured: 511 ticks
+		return 1;
+	}
 }
 
 
@@ -677,7 +716,8 @@ int main(void)
 	#if defined(__AVR_ATmega256RFR2__) || defined(__AVR_ATmega2564RFR2__)
 	    EIND = 1;
 	#endif
-/*	#ifdef _FIX_ISSUE_181_
+
+	#ifdef _FIX_ISSUE_181_
 	    //************************************************************************
 	    //*	Dec 29,	2011	<MLS> Issue #181, added watch dog timmer support
 	    //*	handle the watch dog timer
@@ -696,7 +736,7 @@ int main(void)
 			app_start();
 		}
 		//************************************************************************
-	#endif*/
+	#endif
 
 
 /* START Josua */
@@ -704,8 +744,9 @@ int main(void)
 	/* get calibration value from Atmel studio 0xB3 for each device */
 	///TODO autocaliber with the two oscillators 
     //OSCCAL = 0xaa; // //0xA3; // OSCCAL; //0xa3;
+	CLKPR = (1<<CLKPCE);
+	CLKPR = 0x0f;
 	CalibrateInternalRc();
-
 
 
     uint16_t timer_ticks = 0;
@@ -713,8 +754,8 @@ int main(void)
     		//pullups
     		PORTE |= (1<<PE0)|(1<<PE1);
 
-    		DDRB |= (1<<PB4);
-    		PORTB | (1<<PB4)|(1<<PB5)|(1<<PB6);
+    		//DDRB |= (1<<PB4);
+    		//PORTB | (1<<PB4)|(1<<PB5)|(1<<PB6);
 
     		TIMER_CONFIG_A = 0;
     		TIMER_CONFIG_B = 0;
@@ -728,8 +769,6 @@ int main(void)
     		PCICR |= (1<<PCIE1);
     		PCMSK1 |= (1<<PCINT8);
 
-    		CLKPR = (1<<CLKPCE);
-    		CLKPR = 0x0f;
     		uint32_t wait = 0xfffff;
     		sei();
     		while(count <=6 && --wait);
@@ -797,7 +836,7 @@ int main(void)
 #ifndef REMOVE_BOOTLOADER_LED
 	/* PROG_PIN pulled low, indicate with LED that bootloader is active */
 	PROGLED_DDR		|=	(1<<PROGLED_PIN);
-//	PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// active low LED ON
+	//PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// active low LED ON
 	PROGLED_PORT	|=	(1<<PROGLED_PIN);	// active high LED ON
 
 
@@ -820,9 +859,8 @@ int main(void)
 	UART_STATUS_REG		|=	(1 <<UART_DOUBLE_SPEED);
 #endif
 	//UART_BAUD_RATE_LOW	=	UART_BAUD_SELECT(BAUDRATE,F_CPU);
-	//UART_BAUD_RATE_LOW = get_ubrr(timer_ticks);
-	UART_BAUD_RATE_LOW = 1;
-	//UART_BAUD_RATE_LOW = 1;
+	UART_BAUD_RATE_LOW = get_ubrr(timer_ticks);
+	//UART_BAUD_RATE_LOW = 0;
 	UART_CONTROL_REG	=	(1 << UART_ENABLE_RECEIVER) | (1 << UART_ENABLE_TRANSMITTER);
 
 	asm volatile ("nop");			// wait until port has changed
