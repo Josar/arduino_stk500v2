@@ -132,7 +132,7 @@ LICENSE:
 	#define EEMWE   2
 #endif
 
-#define	_DEBUG_SERIAL_ (1)
+//#define	_DEBUG_SERIAL_ (1)
 //#define	_DEBUG_WITH_LEDS_ (1)
 
 
@@ -631,13 +631,38 @@ volatile uint8_t count=0;
 
 static inline uint16_t get_ubrr(uint16_t ticks)
 {
-	/*if(ticks > 4050 && ticks < 4250){
+	if(ticks > 4050 && ticks < 4250){
 		//38400 BAUD
 		return 25;
 	}
 	if(ticks > 1000){
-		return  (ticks*0.9/(16*9UL))-1;
+		return  (ticks/(16*10UL))-0.5;
 	}
+	/*if(ticks > 12000){
+		return 103;
+	}
+	if(ticks > 8500){
+		return 68;
+	}
+	if(ticks > 6000){
+		return 51;
+	}
+	if(ticks > 4500){
+		return 34;
+	}
+	if(ticks > 3000){
+			//38400 Baud
+		return 25;
+	}
+	if(ticks > 2200){
+		return 16;
+	}
+	if(ticks > 1300){
+		return 12;
+	}
+	if(ticks > 800){
+		return 8;
+	}*/
 	if(ticks > 580){
 		//250kBaud
 		return 3;
@@ -645,17 +670,6 @@ static inline uint16_t get_ubrr(uint16_t ticks)
 	else{
 		//500kBaud measured: 511 ticks
 		return 1;
-	}*/
-	if(ticks > 800){
-		return  (ticks*0.9/(16*9UL))-1;
-	}
-	if(ticks > 500){
-		return 3;
-	}
-	if(ticks > 300){
-		return 1;
-	}else{
-		return 0;
 	}
 }
 
@@ -663,7 +677,8 @@ static inline uint16_t get_ubrr(uint16_t ticks)
 ISR(PCINT1_vect)
 {
 	if(count >=6){
-			TCCR5B &= ~(1<<CS50);
+					TCCR5B &= ~(1<<CS50);
+
 	}else if(count == 0)
 		{
 			TCCR5B |= (1<<CS50); //start clock
@@ -754,7 +769,7 @@ int main(void)
     		PCICR |= (1<<PCIE1);
     		PCMSK1 |= (1<<PCINT8);
 
-    		uint32_t wait = 0xfffffff;
+    		uint32_t wait = 0xfffff;
     		sei();
     		while(count <=6 && --wait);
     		PCICR &= ~(1<<PCIE1);
@@ -844,14 +859,16 @@ int main(void)
 	UART_STATUS_REG		|=	(1 <<UART_DOUBLE_SPEED);
 #endif
 	//UART_BAUD_RATE_LOW	=	UART_BAUD_SELECT(BAUDRATE,F_CPU);
-	//UART_BAUD_RATE_LOW = get_ubrr(timer_ticks);
-	UART_BAUD_RATE_LOW = 0;
+	UART_BAUD_RATE_LOW = get_ubrr(timer_ticks);
+	//UART_BAUD_RATE_LOW = 0;
 	UART_CONTROL_REG	=	(1 << UART_ENABLE_RECEIVER) | (1 << UART_ENABLE_TRANSMITTER);
 
 	asm volatile ("nop");			// wait until port has changed
 #ifdef _DEBUG_SERIAL_
 //	delay_ms(500);
 	sendchar('#');
+	sendchar(temp_osccal);
+	sendchar(OSCCAL);
 	sendchar(get_ubrr(timer_ticks));
 	sendchar(timer_ticks>>8);
 	sendchar(timer_ticks);
