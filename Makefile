@@ -393,7 +393,8 @@ penguino: begin gccversion sizebefore build sizeafter end
 			mv $(TARGET).hex stk500boot_v2_penguino.hex
 
 ############################################################
-#	Jul 14,	2017	<MLS> Adding ATmega256RFR2 support
+#	Jul 14,	2017	<MLS> Adding ATmega256RFR2 support 
+#					for the RWTH Aachen Jiminy Board
 ###
 # BOOTSZ = 0x1FC00 (1024Byte)
 # BOOTLOADER_ADDRESS = 0x3F800
@@ -406,19 +407,29 @@ penguino: begin gccversion sizebefore build sizeafter end
 # LOW = 0xE2 
 #
 # Josua
-#mega256rfr2: CFLAGS +=  -fdata-sections -Wl,--section-start=.bootlup=0x3FD00
+# mega256rfr2: CFLAGS +=  -fdata-sections -Wl,--section-start=.bootlup=0x3FD00
 #
-# BOOTSZ = 0x1F000 (4096Byte)
+# BOOTSZ = 0x1FE00 (512 Byte)
+# BOOTLOADER_ADDRESS = 0x3FC00 
+#
+# BOOTSZ = 0x1FC00 (1024 Byte)
+# BOOTLOADER_ADDRESS = 0x3F800 
+#
+# BOOTSZ = 0x1F800 (2048 Byte)
+# BOOTLOADER_ADDRESS = 0x3F000 
+#
+# BOOTSZ = 0x1F000 (4096 Byte)
 # BOOTLOADER_ADDRESS = 0x3E000 
+#
 #mega256rfr2:	CFLAGS += -fno-strict-aliasing -Wstrict-prototypes -Wmissing-prototypes -Wpointer-arith -mrelax
 mega256rfr2:	LDFLAGS += -mmcu=$(MCU) -Wl,--relax -Wl,--gc-sections
-mega256rfr2: CFLAGS+= -fdata-sections -ffunction-sections -fwhole-program
-mega256rfr2: CFLAGS += -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -fno-tree-scev-cprop -fno-split-wide-types
-mega256rfr2: CFLAGS += -fno-inline-small-functions
+mega256rfr2:    CFLAGS+= -fdata-sections -ffunction-sections -fwhole-program
+mega256rfr2:    CFLAGS += -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -fno-tree-scev-cprop -fno-split-wide-types
+mega256rfr2:    CFLAGS += -fno-inline-small-functions
 mega256rfr2:	MCU = atmega256rfr2
 mega256rfr2:	F_CPU = 8000000
-mega256rfr2:	BOOTLOADER_ADDRESS = 0x3F000
-mega256rfr2:	CFLAGS += -DBOOTSIZE=2048 -DBAUDRATE=115200 -D_MEGA_BOARD_PINO
+mega256rfr2:	BOOTLOADER_ADDRESS = 0x3E000
+mega256rfr2:	CFLAGS += -DBOOTSIZE=2096 -DBAUDRATE=115200 -D_MEGA_BOARD_JIMINY
 #mega256rfr2:	CFLAGS += -ffunction-sections -fdata-sections -funroll-loops
 mega256rfr2:	begin gccversion sizebefore build sizeafter end 
 			mv $(TARGET).hex stk500boot_v2_mega256rfr2.hex
@@ -456,7 +467,8 @@ end:
 
 # Display size of file.
 HEXSIZE = $(SIZE) --target=$(FORMAT) $(TARGET).hex
-ELFSIZE = $(SIZE) --format=avr --mcu=$(MCU) $(TARGET).elf
+# ELFSIZE = $(SIZE) --format=avr --mcu=$(MCU) $(TARGET).elf
+ELFSIZE = $(SIZE) $(TARGET).elf
 
 sizebefore:
 	@if test -f $(TARGET).elf; then echo; echo $(MSG_SIZE_BEFORE); $(ELFSIZE); \

@@ -222,14 +222,15 @@ LICENSE:
 	#define PROGLED_PORT	PORTB
 	#define PROGLED_DDR		DDRB
 	#define PROGLED_PIN		PINB7
-#elif defined(_MEGA_BOARD_PINO )
+#elif defined(_MEGA_BOARD_JIMINY )
 	#define PROGLED_PORT  PORTB
 	#define PROGLED_DDR    DDRB
 	#define PROGLED_RED    PINB5
 	#define PROGLED_GREEN  PINB6
 	#define PROGLED_PIN   PINB4
 	#define UART_BAUDRATE_DOUBLE_SPEED 1
-	#pragma message "Used Board = _MEGA_BOARD_PINO"
+	#define	_FIX_ISSUE_181_
+	#pragma message "Used Board = MEGA_BOARD_JIMINY"
 #else
 	#define PROGLED_PORT	PORTG
 	#define PROGLED_DDR		DDRG
@@ -559,18 +560,18 @@ uint32_t count = 0;
 void (*app_start)(void) = 0x0000;
 
 
-#if defined(_MEGA_BOARD_PINO )
-		#define ASYNC_TIMER														AS2
-		#define NO_PRESCALING													CS20
-		#define ASYNC_TIMER_CONTROL_REGISTER				TCCR2B
-		#define ASYNC_TIMER_CONTROL_UPDATE_BUSY    	TCR2AUB
-		#define OUTPUT_COMPARE_UPDATE_BUSY         		OCR2AUB
-		#define TIMER_UPDATE_BUSY                  						TCN2UB
-		#define TIMER                              											TCNT2
-		#define OSCCAL_RESOLUTION                  						8
-		#define LOOP_CYCLES                        									7
-		#define XTAL_FREQUENCY 												32768U
-		#define EXTERNAL_TICKS 													50U
+#if defined(_MEGA_BOARD_JIMINY )
+        #define ASYNC_TIMER                         AS2
+        #define NO_PRESCALING                       CS20
+        #define ASYNC_TIMER_CONTROL_REGISTER        TCCR2B
+        #define ASYNC_TIMER_CONTROL_UPDATE_BUSY     TCR2AUB
+        #define OUTPUT_COMPARE_UPDATE_BUSY          OCR2AUB
+        #define TIMER_UPDATE_BUSY                   TCN2UB
+        #define TIMER                               TCNT2
+        #define OSCCAL_RESOLUTION                   8
+        #define LOOP_CYCLES                         7
+        #define XTAL_FREQUENCY                      32768U
+        #define EXTERNAL_TICKS                      50U
 #endif
 
 /* Add calibration functions */
@@ -702,7 +703,26 @@ int main(void)
 		// check if WDT generated the reset, if so, go straight to app
 		if (mcuStatusReg & _BV(WDRF))
 		{
-			app_start();
+			#if defined(__AVR_ATmega256RFR2__)
+			// Josua pass mcusr to application for reset cause handling in section(".init0")
+			// save the reset flags in the designated register
+			//  This can be saved in a main program by putting code in .init0 (which
+			//  executes before normal c init code) to save R2 to a global variable.
+			__asm__ __volatile__ ("mov r2, %0\n" :: "r" (mcuStatusReg));
+			/* Use this to restore mcusr in application
+				uint8_t mcusr_mirror __attribute__ ((section (".noinit")));
+				 void get_mcusr(void)\
+				__attribute__((naked))\
+				__attribute__((section(".init0")));
+				void get_mcusr(void)
+				{
+					// save the reset flags passed from the bootloader
+					__asm__ __volatile__ ("mov %0, r2\n" : "=r" (mcusr_mirror) :);
+				}
+			*/
+			
+			#endif
+			app_start(); 
 		}
 		//************************************************************************
 	#endif
