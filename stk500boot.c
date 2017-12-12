@@ -132,7 +132,7 @@ LICENSE:
 	#define EEMWE   2
 #endif
 
-#define	_DEBUG_SERIAL_ (1)
+//#define	_DEBUG_SERIAL_ (1)
 //#define	_DEBUG_WITH_LEDS_ (1)
 
 
@@ -556,8 +556,45 @@ uint32_t count = 0;
 	return UART_DATA_REG;
 }
 
+
+#if defined(__AVR_ATmega256RFR2__)
+// Josua pass mcusr to application for reset cause handling in section(".init0")
+// save the reset flags in the designated register
+//  This can be saved in a main program by putting code in .init0 (which
+//  executes before normal c init code) to save R2 to a global variable.
+
+/* Use this to restore mcusr in application
+	uint8_t mcusr_mirror __attribute__ ((section (".noinit")));
+	 void get_mcusr(void)\
+	__attribute__((naked))\
+	__attribute__((section(".init0")));
+	void get_mcusr(void)
+	{
+		// save the reset flags passed from the bootloader
+		__asm__ __volatile__ ("mov %0, r2\n" : "=r" (mcusr_mirror) :);
+	}
+*/
+
+void app_start(uint8_t mcusr) __attribute__ ((naked));
+void app_start(uint8_t mcusr) {
+  // save mcusr for app
+  __asm__ __volatile__ ("mov r2, %0\n" :: "r" (mcusr));
+
+  // Jump to RST vector
+  __asm__ __volatile__ (
+    "clr r30\n"
+    "clr r31\n"
+    "ijmp\n"
+  );
+}
+
+#else
 //*	for watch dog timer startup
-void (*app_start)(void) = 0x0000;
+void (*app_start)(uint8_t mcusr) = 0x0000;
+#endif
+
+
+
 
 
 #if defined(_MEGA_BOARD_JIMINY )
@@ -703,26 +740,7 @@ int main(void)
 		// check if WDT generated the reset, if so, go straight to app
 		if (mcuStatusReg & _BV(WDRF))
 		{
-			#if defined(__AVR_ATmega256RFR2__)
-			// Josua pass mcusr to application for reset cause handling in section(".init0")
-			// save the reset flags in the designated register
-			//  This can be saved in a main program by putting code in .init0 (which
-			//  executes before normal c init code) to save R2 to a global variable.
-			__asm__ __volatile__ ("mov r2, %0\n" :: "r" (mcuStatusReg));
-			/* Use this to restore mcusr in application
-				uint8_t mcusr_mirror __attribute__ ((section (".noinit")));
-				 void get_mcusr(void)\
-				__attribute__((naked))\
-				__attribute__((section(".init0")));
-				void get_mcusr(void)
-				{
-					// save the reset flags passed from the bootloader
-					__asm__ __volatile__ ("mov %0, r2\n" : "=r" (mcusr_mirror) :);
-				}
-			*/
-			
-			#endif
-			app_start(); 
+			app_start(mcuStatusReg); 
 		}
 		//************************************************************************
 	#endif
