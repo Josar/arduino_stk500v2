@@ -581,11 +581,13 @@ void app_start(uint8_t mcusr) {
   __asm__ __volatile__ ("mov r2, %0\n" :: "r" (mcusr));
 
   // Jump to RST vector
-  __asm__ __volatile__ (
+    __asm__ __volatile__ ("jmp 0000");
+/*  __asm__ __volatile__ (
     "clr r30\n"
     "clr r31\n"
     "ijmp\n"
   );
+  */
 }
 
 #else
@@ -748,9 +750,7 @@ int main(void)
 
 /* START Josua */
     /* Set calibration value for internal RC oscillator*/
-	/* get calibration value from Atmel studio 0xB3 for each device */
-	///TODO autocaliber with the two oscillators 
-    //OSCCAL = 0xaa; // //0xA3; // OSCCAL; //0xa3;
+	/* autocaliber with the two oscillators */
 	CLKPR = (1<<CLKPCE);
 	CLKPR = 0x0f;
 	CalibrateInternalRc();
@@ -788,13 +788,10 @@ int main(void)
     		}
     		timer_ticks = TCNT5;
 
-
-
 	/* PROG_PIN pulled low, indicate with LED that bootloader is active */
 	PROGLED_DDR		|=	(1<<PROGLED_PIN);
 	PROGLED_PORT	&=	~(1<<PROGLED_PIN);	// active low LED ON
 	// PROGLED_PORT	|=	(1<<PROGLED_PIN);	// active high LED ON
-
 
 	/* END Josua */
 
