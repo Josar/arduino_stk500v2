@@ -1,0 +1,51 @@
+atmega256rfr2 bootloader von gihub josar arduino bootloader.
+
+E:\Linux_Work\Bootloader\steffen\arduino_stk500v2\stk500boot_v2_mega256rfr2.hex
+
+Zum debuggen so einstellen
+wenn JTAG verwendet werden soll muss der reset vom atmega16u2 entfernt werden.
+Den atmega16u2 löschen/oder reset halten hiflt nicht.
+Also die Kapazität auslöten. Konnte noch nicht getestet werden.
+
+BODLEVEL = DISABLED
+OCDEN = [X]
+JTAGEN = [X]
+SPIEN = [X]
+WDTON = [ ]
+EESAVE = [ ]
+BOOTSZ = 4096W_1F000
+BOOTRST = [X]
+CKDIV8 = [ ]
+CKOUT = [ ]
+CKSEL_SUT = INTRCOSC_6CK_65MS
+
+EXTENDED = 0xFF (valid)
+HIGH = 0x18 (valid)
+LOW = 0xE2 (valid)
+
+wenn er verwendet wird oder zumm messen von leistungsaufnahme auf jedenfall On chip debbuging auschalten.
+BODLEVEL = 1V8
+OCDEN = [ ]
+JTAGEN = [ ]
+SPIEN = [X]
+WDTON = [ ]
+EESAVE = [X]
+BOOTSZ = 4096W_1F000
+BOOTRST = [X]
+CKDIV8 = [ ]
+CKOUT = [ ]
+CKSEL_SUT = TOSC_258CK_65MS
+
+EXTENDED = 0xFE (valid)
+HIGH = 0xD0 (valid)
+LOW = 0xD6 (valid)
+
+
+after bootloader is programmed set lock bit for SPM_DISABLE to prevent bootloader overwrite when programmed.
+
+
+LB = NO_LOCK
+BLB0 = NO_LOCK
+BLB1 = SPM_DISABLE
+
+LOCKBIT = 0xEF (valid)
