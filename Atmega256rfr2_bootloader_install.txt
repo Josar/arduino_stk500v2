@@ -1,10 +1,10 @@
-atmega256rfr2 bootloader von gihub josar arduino bootloader.
+atmega256rfr2 bootloader von github josar arduino bootloader.
 
 E:\Linux_Work\Bootloader\steffen\arduino_stk500v2\stk500boot_v2_mega256rfr2.hex
 
 Zum debuggen so einstellen
 wenn JTAG verwendet werden soll muss der reset vom atmega16u2 entfernt werden.
-Den atmega16u2 löschen/oder reset halten hiflt nicht.
+Den atmega16u2 löschen/oder reset halten hilft nicht.
 Also die Kapazität auslöten. Konnte noch nicht getestet werden.
 
 BODLEVEL = DISABLED
