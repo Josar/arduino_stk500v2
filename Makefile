@@ -429,7 +429,7 @@ mega256rfr2:    CFLAGS += -fno-inline-small-functions
 mega256rfr2:	MCU = atmega256rfr2
 mega256rfr2:	F_CPU = 8000000
 mega256rfr2:	BOOTLOADER_ADDRESS = 0x3E000
-mega256rfr2:	CFLAGS += -DBOOTSIZE=2096 -DBAUDRATE=115200 -D_MEGA_BOARD_JIMINY
+mega256rfr2:	CFLAGS += -DBOOTSIZE=4096 -DBAUDRATE=115200 -D_MEGA_BOARD_JIMINY
 #mega256rfr2:	CFLAGS += -ffunction-sections -fdata-sections -funroll-loops
 mega256rfr2:	begin gccversion sizebefore build sizeafter end 
 			mv $(TARGET).hex stk500boot_v2_mega256rfr2.hex
